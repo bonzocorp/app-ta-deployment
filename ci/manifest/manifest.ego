@@ -1,28 +1,49 @@
 <%! func ManifestTmpl(w io.Writer, config Config) error %>
 <%% import . "github.com/compozed/travel-agent/models" %%>
 ---
+# ci/manifest/manifest.ego
+#
+# Travel agent manifest template to cf apps to
+# multiple environments
+#
+# DO NOT MAKE CHANGES TO THIS FILE. Instead modify
+# the travel-agent.yml or settings.yml file for this pipeline.
+#
+# Author:
+#   Alan Moran;  bonzofenix@gmail.com
+#   Anand Gopal; pegangandkumar@gmail.com
+#   Joe Goller;  joe.goller@gmail.com
+
+groups:
+- name: deploy
+  jobs:
+<% for _, env := range config.Envs { %>
+  - <%= env.Name %>-deploy
+<% } %>
+
 jobs:
 <% for _, env := range config.Envs { %>
-- name: publish-<%= env.Name %>
+- name: <%= env.Name %>-deploy
   plan:
   - aggregate:
     - get: app-src
       trigger: true
 <% if env.HasFeature("build_app_from_src") { %>
   - task: build_app_from_src
-    platform: linux
-    image_resource:
-      type: docker-image
-      source:
-        repository: (( grab meta.build_app_from_src.docker_repository ))
-    inputs:
-    - name: app-src
-    outputs:
-    - name: built-docs
-    run:
-      path: app-src/ci/tasks/build_app_from_src.sh
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: (( grab meta.build_app_from_src.docker_repository ))
+      inputs:
+      - name: app-src
+      outputs:
+      - name: built-app
+      run:
+        path: app-src/ci/tasks/build_app_from_src.sh
 <% } %>
-  - put: cf
+  - put: cf-<%= env.Name %>
     params:
 <% if env.HasFeature("build_app_from_src") { %>
       manifest: built-app/manifest.yml
@@ -30,6 +51,7 @@ jobs:
 <% } else { %>
       manifest: app-src/manifest.yml
       path: app-src
+<% } %>
 <% } %>
 
 resources:
