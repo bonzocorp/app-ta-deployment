@@ -1,0 +1,53 @@
+<%! func ManifestTmpl(w io.Writer, config Config) error %>
+<%% import . "github.com/compozed/travel-agent/models" %%>
+---
+jobs:
+<% for _, env := range config.Envs { %>
+- name: publish-<%= env.Name %>
+  plan:
+  - aggregate:
+    - get: app-src
+      trigger: true
+<% if env.HasFeature("build_app_from_src") { %>
+  - task: build_app_from_src
+    platform: linux
+    image_resource:
+      type: docker-image
+      source:
+        repository: (( grab meta.build_app_from_src.docker_repository ))
+    inputs:
+    - name: app-src
+    outputs:
+    - name: built-docs
+    run:
+      path: app-src/ci/tasks/build_app_from_src.sh
+<% } %>
+  - put: cf
+    params:
+<% if env.HasFeature("build_app_from_src") { %>
+      manifest: built-app/manifest.yml
+      path: built-app
+<% } else { %>
+      manifest: app-src/manifest.yml
+      path: app-src
+<% } %>
+
+resources:
+- name: app-src
+  source:
+    branch:      (( grab meta.app.git_branch ))
+    private_key: (( grab meta.app.git_private_key ))
+    uri:         (( grab meta.app.git_uri ))
+  type: git
+
+<% for _, env := range config.Envs { %>
+- name: cf-<%= env.Name %>
+  type: cf
+  source:
+    api:            (( grab meta.<%= env.Name %>.cf_api ))
+    username:       (( grab meta.<%= env.Name %>.cf_username ))
+    password:       (( grab meta.<%= env.Name %>.cf_password ))
+    organization:   (( grab meta.<%= env.Name %>.cf_org ))
+    space:          (( grab meta.<%= env.Name %>.cf_space ))
+    skip_cert_check: true
+<% } %>
