@@ -4,7 +4,10 @@ Travel agent deployment project to deploy cf apps
 
 ## Available travel-agent features
 
-**build_app_from_src**
+**build**
 
-Performs a build process `YOUR_APP/ci/tasks/build_app_from_src.sh` prior to the push.
+Performs a build process `YOUR_APP/ci/tasks/build.sh` prior to the push. This should only happen before pushing to the lower environment to keep consistency.
 
+**test**
+
+Test process `YOUR_APP/ci/tasks/test.sh` prior to the build or push. 
