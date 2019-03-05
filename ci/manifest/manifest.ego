@@ -63,6 +63,7 @@ jobs:
       manifest: app-src/manifest.yml
       path: app-src
 <% } %>
+      environment_variables: (( grab meta.<%= env.Name %>.cf_environment_variables || null ))
 <% } %>
 
 resources:
