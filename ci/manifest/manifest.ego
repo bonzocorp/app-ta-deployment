@@ -64,6 +64,9 @@ jobs:
       path: app-src
 <% } %>
       environment_variables: (( grab meta.<%= env.Name %>.cf_environment_variables || null ))
+      vars:
+        app_name: <%= config.Name %>-<%= env.Name %>
+
 <% } %>
 
 resources:
