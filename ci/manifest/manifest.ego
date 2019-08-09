@@ -25,7 +25,7 @@ jobs:
 <% for _, env := range config.Envs { %>
 - name: <%= env.Name %>-deploy
   plan:
-  - aggregate:
+  - in_parallel:
     - get: app-src
       trigger: true
 <% if env.HasFeature("test") { %>
