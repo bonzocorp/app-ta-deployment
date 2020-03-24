@@ -14,6 +14,15 @@
 #   Anand Gopal; pegangandkumar@gmail.com
 #   Joe Goller;  joe.goller@gmail.com
 
+meta:
+  pipelines:
+    uri: https://github.com/bonzocorp/app-ta-deployment.git
+
+<% if config.HasFeature("slack_updates") { %>
+  slack:
+    uri: (( param "Slack integration webhook uri" ))
+<% } %>
+
 groups:
 - name: deploy
   jobs:
@@ -26,8 +35,10 @@ jobs:
 - name: <%= env.Name %>-deploy
   plan:
   - in_parallel:
+    - get: pipeline
     - get: app-src
       trigger: true
+    - get: metadata
 <% if env.HasFeature("test") { %>
   - task: test
     config:
@@ -47,6 +58,7 @@ jobs:
         type: docker-image
         source:
           repository: (( grab meta.build.docker_repository ))
+          tag: edge
       inputs:
       - name: app-src
       outputs:
@@ -66,15 +78,42 @@ jobs:
       environment_variables: (( grab meta.<%= env.Name %>.cf_environment_variables || null ))
       vars:
         app_name: <%= config.Name %>-<%= env.Name %>
-
+  <% if config.HasFeature("slack_updates") { %>
+  on_success:
+    do:
+    - task: deploy-status-notification
+      file: pipeline/ci/tasks/deploy-status-notification.yml
+      params:
+        BUILD_STATUS: success
+    - put: notify
+      params:
+        channel:  (( grab meta.slack.updates.channel ))
+        username: (( grab meta.slack.username ))
+        icon_url: (( grab meta.slack.success.icon_url ))
+        text_file: output/deploy_status_notification
+  on_failure:
+    do:
+    - task: deploy-status-notification
+      file: pipeline/ci/tasks/deploy-status-notification.yml
+      params:
+        BUILD_STATUS: failure
+    - put: notify
+      params:
+        channel:  (( grab meta.slack.updates.channel ))
+        username: (( grab meta.slack.username ))
+        icon_url: (( grab meta.slack.failure.icon_url ))
+        text_file: output/deploy_status_notification
+  <% } %>
 <% } %>
 
 resources:
 - name: app-src
   source:
-    branch:      (( grab meta.app.git_branch ))
-    private_key: (( grab meta.app.git_private_key ))
-    uri:         (( grab meta.app.git_uri ))
+    branch:      (( grab meta.app.git.branch ))
+    private_key: (( grab meta.app.git.private_key || null))
+    uri:         (( grab meta.app.git.uri ))
+    username:    (( grab meta.app.git.username ))
+    password:    (( grab meta.app.git.password))
   type: git
 
 <% for _, env := range config.Envs { %>
@@ -88,3 +127,32 @@ resources:
     space:          (( grab meta.<%= env.Name %>.cf_space ))
     skip_cert_check: true
 <% } %>
+- name: metadata
+  type: build-metadata
+
+- name: pipeline
+  type: git
+  source:
+    branch:      (( grab meta.pipelines.branch || "master" ))
+    uri:         (( grab meta.pipelines.uri ))
+
+
+<% if config.HasFeature("slack_updates") { %>
+- name: notify
+  type: slack-notification
+  source:
+    url: (( grab meta.slack_updates.uri || "" ))
+<% } %>
+
+resource_types:
+- name: build-metadata
+  type: docker-image
+  source:
+    repository: mastertinner/build-metadata-resource
+<% if config.HasFeature("slack_updates") { %>
+- name: slack-notification
+  type: docker-image
+  source:
+    repository: cfcommunity/slack-notification-resource
+<% } %>
+
